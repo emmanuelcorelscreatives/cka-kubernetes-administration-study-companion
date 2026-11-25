@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cka-study-unique
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: study-web
+  namespace: cka-study-unique
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: study-web
+  template:
+    metadata:
+      labels:
+        app: study-web
+    spec:
+      initContainers:
+        - name: prepare
+          image: busybox:1.36
+          command: ["sh", "-c", "sleep 5"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+      containers:
+        - name: web
+          image: nginx:stable
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: study-web
+  namespace: cka-study-unique
+spec:
+  selector:
+    app: study-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: study-deadline
+  namespace: cka-study-unique
+spec:
+  activeDeadlineSeconds: 45
+  backoffLimit: 4
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: task
+          image: busybox:1.36
+          command: ["sh", "-c", "sleep 600"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
