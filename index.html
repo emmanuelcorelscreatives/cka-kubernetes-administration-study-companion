@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>CKA practical study companion</title>
+<style>
+body { margin: 0 auto; max-width: 64rem; padding: 1.4rem; color: #172633;
+       background: #fff; font: 1rem/1.6 system-ui, sans-serif; }
+header { border-bottom: 2px solid #326ce5; padding-bottom: 1rem; }
+nav ul { padding-left: 1.4rem; }
+a { color: #174fa6; overflow-wrap: anywhere; }
+h1, h2 { line-height: 1.25; }
+h2 { margin-top: 2.2rem; }
+pre { padding: 1rem; background: #f0f4f8; overflow-x: auto; }
+code { font: 0.93em ui-monospace, monospace; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border: 1px solid #9baaba; padding: .55rem; text-align: left; }
+footer { margin-top: 2rem; border-top: 1px solid #9baaba; padding-top: 1rem; }
+@media print { nav { display: none; } body { max-width: none; padding: 0; }
+              h2 { break-after: avoid; } pre, tr { break-inside: avoid; }
+              a { color: inherit; } }
+</style>
+</head>
+<body>
+<header>
+<p>Companion to the Kubernetes administration scenario tests</p>
+<p>Read online, save this page for offline study, or use your browser's Print command.
+These investigations support hands-on study; they are not a terminal exam simulator.</p>
+<nav aria-label="Download study files">
+<ul>
+<li><a href="CKA-Practical-Study-Companion-v1.zip" download>Download the original study guide and lab manifest (ZIP)</a></li>
+<li><a href="CKA-Practical-Study-Guide.md" download>Download the study guide (Markdown)</a></li>
+<li><a href="scenario-lab.yaml" download>Download the optional lab manifest (YAML)</a></li>
+<li><a href="evidence-notebook.tsv" download>Download a blank evidence notebook (TSV)</a></li>
+<li><a href="SHA256SUMS.txt" download>Download file checksums</a></li>
+</ul>
+</nav>
+</header>
+<main><h1>Kubernetes administration: practical study companion</h1>
+<p>Use the scenario tests to decide what to investigate, then use a disposable cluster to practise the work. Reading a correct answer is not the same as configuring, observing and recovering a workload yourself.</p>
+<h2>Set up a safe workspace</h2>
+<ul>
+<li>Use a cluster you own and can discard. Do not use an employer's production cluster, shared customer environment or an exam environment for these investigations.</li>
+<li>Confirm the selected context before every session. Context names are not evidence of what cluster they point to: inspect the cluster server and user as well.</li>
+<li>Choose a new, uniquely named study namespace. If that namespace already exists, do not assume you own its contents; choose another name.</li>
+<li>Keep a record of every object you create. Cleanup must target those objects only, not arbitrary resources that happen to have similar labels.</li>
+<li>Use approved container images that your lab can pull. Record the resolved image digest when you want a repeatable exercise. Registry limits, admission rules and runtime security settings may require adaptations.</li>
+<li>Check the current Linux Foundation exam instructions separately. Match version-sensitive practical work to the actual environment you will use; this workbook is not a terminal exam simulator.</li>
+</ul>
+<p>Start with read-only checks:</p>
+<pre><code class="language-sh">kubectl config current-context
+kubectl config view --minify
+kubectl version
+kubectl get nodes
+</code></pre>
+<p>Do not share the raw kubeconfig or credentials in screenshots, notes or a public repository. Record only the non-secret details needed to identify your lab.</p>
+<h2>1. Follow the authorization path</h2>
+<p>In your study namespace, create a ServiceAccount, a Role allowing get/list/watch on Pods, and a RoleBinding connecting them. Use an administrator identity that is authorized to impersonate the study account to check <code>kubectl auth can-i</code> for Pod reads and deletes.</p>
+<p>Then create a second, narrower read grant. Does it subtract an existing permission? Explain the difference between changing a grant and adding another grant. Finally, inspect the namespace of the binding, the namespace of the subject, and the referenced role independently.</p>
+<p>For the ClusterRole-reference variation, create only a uniquely named study ClusterRole and record it for explicit cleanup. A RoleBinding can apply its namespaced permissions in one namespace; a ClusterRoleBinding has a different scope. Do not grant cluster-admin just to make a failed test pass.</p>
+<p>Evidence to retain: the exact manifests, the impersonated identity, the requested verb/resource/namespace and your actual authorization result.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/">https://kubernetes.io/docs/reference/access-authn-authz/rbac/</a></p>
+<h2>2. Separate context from namespace</h2>
+<p>With two disposable contexts available, compare a one-request <code>--context</code> override with <code>kubectl config use-context</code>. Inspect the saved current context after each. Compare <code>--namespace</code> with <code>--context</code>; they are not interchangeable.</p>
+<p>Do not run a write command simply to prove which cluster was selected. A read-only namespace or Pod listing is enough to investigate the selection path.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/">https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/</a></p>
+<h2>3. Change a binding reference deliberately</h2>
+<p>Create two study Roles and a binding referencing the first. Try the proposed roleRef change and retain the real API response. Plan a replacement binding that preserves only the intended subjects. Compare this with changing the rules of a Role: the referenced identity and its contents are different things.</p>
+<p>Consider the brief authorization impact of deleting and recreating a binding before using that approach in a real change plan.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/reference/access-authn-authz/rbac/">https://kubernetes.io/docs/reference/access-authn-authz/rbac/</a></p>
+<h2>4. Observe initialization before probing</h2>
+<p>Use <code>scenario-lab.yaml</code> as an optional starting point after reviewing it. Its regular init container finishes before the web container starts. Inspect the init status, events and actual logs. Change the init step in your own copy so that it does not complete, then explain why the application has not started.</p>
+<p>Keep regular init containers separate from restartable sidecars. A readiness probe cannot skip unfinished regular initialization.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/workloads/pods/init-containers/">https://kubernetes.io/docs/concepts/workloads/pods/init-containers/</a></p>
+<h2>5. Diagnose a Service in layers</h2>
+<p>Inspect the Deployment's Pod labels, the Service selector, the eligible EndpointSlices, the Service port and the backend target port. In a copy of your study Service, introduce exactly one mismatch. Capture the actual evidence before correcting it.</p>
+<p>For a named-target-port extension, run two backends that genuinely listen on different numeric ports but declare the same port name. Do not change only <code>containerPort</code> and assume that this changes what the application listens on.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/services-networking/service/">https://kubernetes.io/docs/concepts/services-networking/service/</a></p>
+<p>Reading: <a href="https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/">https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/</a></p>
+<h2>6. Test both sides of a network policy</h2>
+<p>Use a lab network plugin that actually enforces NetworkPolicy. Start with known working connectivity and record source/destination addresses and namespaces. Add one policy at a time.</p>
+<p>Compare a single peer entry containing both namespaceSelector and podSelector with two separate peer entries. Explain which traffic each version selects. If both endpoints are isolated in the relevant direction, inspect source egress as well as destination ingress. Preserve DNS access if your test depends on name resolution; a DNS failure is not proof of an application-port rule failure.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">https://kubernetes.io/docs/concepts/services-networking/network-policies/</a></p>
+<h2>7. Compare normal and headless discovery</h2>
+<p>Create a normal selector-based Service and a separate headless Service for the same ready study Pods. Inspect actual DNS answers and EndpointSlices. Explain why a virtual Service address and direct backend addresses support different client behavior.</p>
+<p>Keep <code>publishNotReadyAddresses</code> and Pod readiness explicit. Do not infer readiness or ordering guarantees from a headless Service alone.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/">https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/</a></p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/services-networking/service/">https://kubernetes.io/docs/concepts/services-networking/service/</a></p>
+<h2>8. Separate startup, readiness and liveness</h2>
+<p>In a copy of the study workload, design distinct checks for initialization, ability to receive traffic and a condition that justifies restart. Observe real probe events, restart counts and endpoint eligibility.</p>
+<p>Do not deliberately restart unrelated workloads. A readiness failure does not, by itself, request a container restart. A startup probe can defer the other checks until initialization succeeds; it is not a permanent waiver of health checks.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/">https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/</a></p>
+<h2>9. Distinguish requests, limits and utilization</h2>
+<p>Inspect the admitted Pod specification, not only the submitted YAML: admission defaults can supply values. Compare scheduling based on requests with measured CPU usage and limit enforcement.</p>
+<p>If your lab already has working resource metrics and an HPA, investigate a CPU percentage target with and without appropriate CPU requests. Do not install an unreviewed metrics add-on just to follow this worksheet. Compare a percentage-of-request target with an absolute usage target before drawing conclusions.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/">https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/</a></p>
+<p>Reading: <a href="https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/">https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/</a></p>
+<h2>10. Investigate configuration delivery</h2>
+<p>Provide a harmless ConfigMap value to a study container through an environment variable. Change the ConfigMap and inspect the running process's value before and after replacing the Pod. Contrast environment-variable delivery with a mounted ConfigMap; account for mount type and propagation behavior rather than assuming every update is immediate.</p>
+<p>Never put a real credential into a ConfigMap to make the exercise more realistic.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/configuration/configmap/">https://kubernetes.io/docs/concepts/configuration/configmap/</a></p>
+<h2>11. Trace Job completion and failure</h2>
+<p>The optional study manifest includes a deliberately long-running Job with a short active deadline. Inspect the Job condition, Pod events and actual elapsed behavior. Compare this with a Job whose process exits in error and retries under a backoff limit.</p>
+<p>Record whether you are using an ordinary or indexed Job and whether custom failure/success policies apply. Do not treat starting a Pod as successful Job completion.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/workloads/controllers/job/">https://kubernetes.io/docs/concepts/workloads/controllers/job/</a></p>
+<h2>12. Inspect scheduling constraints and quota separately</h2>
+<p>In your own copy of a study Deployment, add a required node-affinity rule that matches no lab node. Inspect the actual scheduling event. Changing a preferred weight cannot override that required rule.</p>
+<p>In a different uniquely named study namespace, use a small Pod-count ResourceQuota and observe an attempted additional Pod creation. Compare a rejected creation with an admitted but unscheduled Pod. Do not confuse every Forbidden response with an RBAC denial: read the supplied reason.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/">https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/</a></p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/policy/resource-quotas/">https://kubernetes.io/docs/concepts/policy/resource-quotas/</a></p>
+<h2>13. Treat storage as real data</h2>
+<p>First identify your lab provisioner, supported access modes, topology and reclaim behavior. Do not assume a default StorageClass exists. Inspect a claim, its selected class, binding events and eventual PV before writing test data.</p>
+<p>For WaitForFirstConsumer, compare an unused claim with one referenced by a schedulable Pod. For access modes, distinguish node-scoped ReadWriteOnce from single-Pod ReadWriteOncePod and check the actual driver support. A Kubernetes access-mode label is not a substitute for application-safe shared writes.</p>
+<p>Investigate expansion only with disposable data and a supported driver. Successful expansion is not a promise of shrinking. A smaller replacement volume requires a separately planned and verified migration. Check reclaim policy before deleting any claim; Retain does not mean Kubernetes has made a backup.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/">https://kubernetes.io/docs/concepts/storage/persistent-volumes/</a></p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/storage/storage-classes/">https://kubernetes.io/docs/concepts/storage/storage-classes/</a></p>
+<h2>14. Build a maintenance plan before disrupting a node</h2>
+<p>Use a disposable multi-node cluster with enough spare capacity if you practise cordon, drain, taints or disruption budgets. Inspect current workloads, DaemonSets, local data, budgets and controller ownership first.</p>
+<p>Predict which existing Pods remain under NoSchedule and which may be evicted under NoExecute. For eviction-based drain, explain why <code>--ignore-daemonsets</code> does not delete the DaemonSet Pods and why a strict budget can block an eviction. Do not use force deletion as the default answer to a blocked maintenance window.</p>
+<p>Certificate renewal, etcd restore and control-plane upgrades need their own complete recovery plans. Read the current kubeadm and version-skew instructions before attempting them; do not infer an upgrade or restore sequence from a multiple-choice answer alone.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/">https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/</a></p>
+<p>Reading: <a href="https://kubernetes.io/docs/tasks/run-application/configure-pdb/">https://kubernetes.io/docs/tasks/run-application/configure-pdb/</a></p>
+<p>Reading: <a href="https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/">https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/</a></p>
+<p>Reading: <a href="https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-certs/">https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-certs/</a></p>
+<p>Reading: <a href="https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-upgrade/">https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-upgrade/</a></p>
+<p>Reading: <a href="https://kubernetes.io/releases/version-skew-policy/">https://kubernetes.io/releases/version-skew-policy/</a></p>
+<h2>15. Keep a small evidence notebook</h2>
+<p>For every investigation, record:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Your notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Context, namespace and non-secret resource identifiers</td>
+<td></td>
+</tr>
+<tr>
+<td>Requirement and symptoms</td>
+<td></td>
+</tr>
+<tr>
+<td>Read-only checks and actual results</td>
+<td></td>
+</tr>
+<tr>
+<td>Hypothesis and evidence that would disprove it</td>
+<td></td>
+</tr>
+<tr>
+<td>Smallest authorized change</td>
+<td></td>
+</tr>
+<tr>
+<td>Verification after the change</td>
+<td></td>
+</tr>
+<tr>
+<td>Recovery and cleanup of objects you created</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>For multi-container Pods, name the container when collecting logs. Distinguish current logs from the previous terminated instance. Preserve the actual event and error text rather than writing down the result you expected to see.</p>
+<p>Reading: <a href="https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/">https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/</a></p>
+<p>Reading: <a href="https://kubernetes.io/docs/tasks/debug/debug-application/debug-pods/">https://kubernetes.io/docs/tasks/debug/debug-application/debug-pods/</a></p>
+<h2>Optional manifest use and cleanup</h2>
+<p>Read <code>scenario-lab.yaml</code> before applying it. Replace every occurrence of <code>cka-study-unique</code> with a new namespace name that does not already exist. The manifest includes that Namespace, two small web replicas, a Service and a short-lived deadline exercise. It does not install a driver, controller, metrics service or network plugin. Admission controls or image-access rules in your lab can require changes.</p>
+<p>Apply only to your verified disposable context. Record what your cluster actually returns, including any errors, rather than assuming a particular result. When finished, delete only the namespace and resources that you created for this exercise. Do not delete a namespace that predated your study work. Review for any cluster-scoped resources you created separately and clean up those exact objects explicitly.</p>
+</main>
+<footer>
+<p>Independent preparation material; not an official certification exam or a guarantee
+of certification. This companion is not affiliated with or sponsored by CNCF or the
+Linux Foundation. Kubernetes is a registered trademark of The Linux Foundation.</p>
+</footer>
+</body>
+</html>
